@@ -6,17 +6,18 @@
 // page 5
 using namespace std;
 
-int main() {
-  string s="shanghai";
-  string t="sakhalin";
+int main(int argc, char **argv) {
+  string s, t;
+  if (argc < 3) {
+    s = "vwvwxy";
+    t = "zvwxw";
+  } else {
+    s = argv[1]; //"vwvwxy"; // "shanghai";
+    t = argv[2]; //"zvwxw"; // "sakhalin";
+  }
   string T=t;
   while (T.length() != 0) {
-    if (T[0] != s[0]) {
-      cerr << "A " << T[0] << "\n";
-      T=T.substr(1);
-      continue;
-    }
-    // prefix was found, find the longest one
+    // if a prefix can be found, find the longest one
     // starting from beginning of S. for e.g
     // if T = vwx and S = vwvwx, then prefix returned
     // should be vwx for the longest even though there
@@ -30,17 +31,23 @@ int main() {
 	i=0; // start T from the beginning
 	while (j<s.length() && T[i] != s[j]) j++;
       } else {
+	i++;
 	// i is the length of the current match
 	if (i > max_len) {
 	  max_len = i;
 	  max_j = j;
 	}
-	i++;
       }
     }
-    assert(max_len != 0);
-    cerr << "M " << max_j << ", " << max_len << "\n";
-    T=T.substr(max_len);
+    if (max_len == 0) {
+      // if no prefix can be found, this char must be added
+      cerr << "A " << T[0] << "\n";
+      T=T.substr(1);
+    } else {
+      cerr << "M " << max_j << ", " << max_len << "\n";
+      T=T.substr(max_len);
+    }
+    // cerr << "* " << T << "\n";
   }
   // TODO - implement optimizations in page 7
   // esp
