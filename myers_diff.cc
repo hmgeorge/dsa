@@ -96,6 +96,7 @@ struct NodeEq {
     }
 };
 
+//#define PRIO_Q
 int main(int argc, char **argv) {
     vector<string> src = readlines(argv[1]);
     vector<string> dst = readlines(argv[2]);
@@ -108,11 +109,16 @@ int main(int argc, char **argv) {
 
     // we insert elements into the prio q based on
     // distance to the dest, closest to dist gets
-    // prio
+    // prio if weights match
     const Node end = {src.size(), dst.size()};
 #ifdef PRIO_Q
     auto cmp = [&](const Node &left, const Node &right) -> bool {
-        return end-left > end-right;
+        auto w_l = graph[left.second][left.first];
+	auto w_r = graph[right.second][right.first];
+	if (w_l == w_r) {
+	  return end-left > end-right;
+	} else
+	  return w_l > w_r;
     };
     // visit(cmp) and decltype stunt only to satisfy C++!
     // as apparently you can't send a func as comparer without
@@ -122,8 +128,6 @@ int main(int argc, char **argv) {
 		   vector<Node> /*container*/,
 		   decltype(cmp) /*compare, class or func*/> visit(cmp);
 #else
-    // A\nB\nC -> A\nC gave correct result with deque
-    // somethings wrong with prio_q
     deque<Node> visit;
 #endif
 
@@ -155,26 +159,42 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
 	    cerr << "reached end\n";
 #endif
-	    break;
+	    break; // this only works if a fifo is used
+	           // but breaking reduces time spent considerably
+	    /*
+	      g++ -DPRIO_Q -std=c++14 myers_diff.cc -o mdiff
+	      time ./mdiff /tmp/1.cc /tmp/2.cc
+	        real	0m2.691s
+
+	      v/s
+	        real	0m9.934s
+	     */
 	}
 	auto x = n.first;
 	auto y = n.second;
-	// relax right neighbor
-	if (x+1 <= src.size()) {
-	   auto &row = graph.at(y);
-	   if (row.find(x+1) == row.end()) {
-	        row[x+1] = INT_MAX;
-	   }
-	   // assert(row != graph.end());
-	   if (row[x+1] > row[x] + 2/*deletion*/) {
-                row[x+1] = row[x] + 2;
-		parent[make_pair(x+1, y)] = n;
+	// relax diag if lines match
+	if (x+1<=src.size() && y+1<=dst.size()) {
+	    if (src[x] == dst[y]) {
+                // add_row_if_needed_for(y+1);
+	        if (graph.size() == (y+1)) {
+		    graph.push_back(adj_map);
+		}
+	        auto &row = graph.at(y);
+	        auto &row2 = graph.at(y+1);
+		if (row2.find(x+1) == row2.end()) {
+		    row2[x+1] = INT_MAX;
+		}
+		// assert this should be min
+		if (row2[x+1] > row[x] + 1) {
+		  row2[x+1] = row[x] + 1;
+		  parent[make_pair(x+1, y+1)]=n;
 #ifdef PRIO_Q
-		visit.emplace(x+1, y);
+		  visit.emplace(x+1, y+1);
 #else
-                visit.emplace_back(x+1, y);
+		  visit.emplace_back(x+1, y+1);
 #endif
-	   }
+		}
+	    }
 	}
 	// relax bottom neighbor
 	if (y+1 <= dst.size()) {
@@ -197,27 +217,22 @@ int main(int argc, char **argv) {
 #endif
 	    }
 	}
-	// relax diag if lines match
-	if (x+1<=src.size() && y+1<=dst.size()) {
-	    if (src[x] == dst[y]) {
-                // add_row_if_needed_for(y+1);
-	        if (graph.size() == (y+1)) {
-		    graph.push_back(adj_map);
-		}
-	        auto &row = graph.at(y);
-	        auto &row2 = graph.at(y+1);
-		if (row2.find(x+1) == row2.end()) {
-		    row2[x+1] = INT_MAX;
-		}
-		// assert this should be min
-		row2[x+1] = row[x] + 1;
-	        parent[make_pair(x+1, y+1)]=n;
+	// relax right neighbor
+	if (x+1 <= src.size()) {
+	   auto &row = graph.at(y);
+	   if (row.find(x+1) == row.end()) {
+	        row[x+1] = INT_MAX;
+	   }
+	   // assert(row != graph.end());
+	   if (row[x+1] > row[x] + 2/*deletion*/) {
+                row[x+1] = row[x] + 2;
+		parent[make_pair(x+1, y)] = n;
 #ifdef PRIO_Q
-		visit.emplace(x, y+1);
+		visit.emplace(x+1, y);
 #else
-                visit.emplace_back(x+1, y+1);
+                visit.emplace_back(x+1, y);
 #endif
-	    }
+	   }
 	}
     }
     list<string> edits;
@@ -231,9 +246,11 @@ int main(int argc, char **argv) {
         } else if (p.first == n.first - 1 && p.second == n.second - 1) {
             // XXX print $CONTEXT lines before first non-diag
             // and after last non-diag
-            edits.push_front(src[p.first]);
+	    // edits.push_front(src[p.first]);
         } else {
             cerr << "unknown case during printing edit script\n";
+	    cerr << "P " << p.first << ", " << p.second << "\n";
+	    cerr << "N " << n.first << ", " << n.second << "\n";
             assert(0);
         }
         n = p;
